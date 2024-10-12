@@ -5,6 +5,7 @@ import os
 import re
 import pickle
 import shlex
+import string
 import subprocess
 import threading
 import time
@@ -87,8 +88,8 @@ def PlayVideo(name, asin, adultstr, streamtype, forcefb=0):
         fr = round(eval(fps_string + '.0'), 3)
         return str(fr).replace('.0', '')
 
-    def _ParseStreams(suc, data, retmpd=False, bypassproxy=False):
-        HostSet = _s.pref_host
+    def _ParseStreams(suc, data, retmpd=False, bypassproxy=False, webid=False):
+        HostSet = 'Cloudfront' if _s.pref_host == 'Auto' and (not _s.audio_description) and (streamtype != 2) and webid else _s.pref_host
         subUrls = []
         hosts = []
 
@@ -134,7 +135,15 @@ def PlayVideo(name, asin, adultstr, streamtype, forcefb=0):
                     Log('Host not reachable: ' + cdn['cdn'])
                     continue
 
-                returl = urlset['url'] if bypassproxy else 'http://{}/mpd/{}'.format(_s.proxyaddress, quote_plus(urlset['url']))
+                returl = urlset['url']
+                if (not _s.audio_description) and (streamtype != 2) and webid:
+                    if urlset['cdn'] == 'Cloudfront':
+                        import random, string
+                        let = string.ascii_letters + string.digits
+                        rnd = [random.choice(let) for _ in range(random.randint(2,10))]
+                        returl = re.sub(r'(\/3\$[^\/]*)', r'\1' + ''.join(rnd), returl)
+                if not bypassproxy:
+                    returl = 'http://{}/mpd/{}'.format(_s.proxyaddress, quote_plus(returl))
                 return (returl, subUrls, timecodes) if retmpd else (True, _extrFr(data), None)
 
         return False, getString(30217), None
@@ -309,16 +318,19 @@ def PlayVideo(name, asin, adultstr, streamtype, forcefb=0):
         xbmc.executebuiltin('StartAndroidActivity("%s", "%s", "", "%s")' % (pkg, act, url))
 
     def _IStreamPlayback(asin, name, streamtype, isAdult, extern):
-        if streamtype == 2:
+        if streamtype == 3:
+            streamtype = 2
             u_path = '' if _g.UsePrimeVideo else '/gp/video'
             data = GrabJSON(_g.BaseUrl + u_path + '/detail/' + asin)
             if data:
-                state = findKey('liveState', data)
-                if state and state['id'] != 'live':
-                    _g.dialog.notification(getString(30203), '{} {}'.format(getString(30174), state['text'].lower()), xbmcgui.NOTIFICATION_INFO)
+                action = findKey('playbackActions', data)
+                msg = findKey('dvMessage', data).get('string', '').replace('{lineBreak}', '\n')
+                if not action and msg:
+                    _g.dialog.notification(getString(30203), msg, xbmcgui.NOTIFICATION_INFO)
                     return False
+                live = findKey('liveState', data).get('isLive', False)
                 tt = findKey('titleType', data)
-                if not state and tt.lower() == 'event':
+                if not live and tt.lower() == 'event':
                     streamtype = 0
 
         from .ages import AgeRestrictions
@@ -352,7 +364,7 @@ def PlayVideo(name, asin, adultstr, streamtype, forcefb=0):
             if success or not isinstance(cookie, dict):
                 break
 
-        mpd, subs, timecodes = _ParseStreams(success, data, retmpd=True, bypassproxy=bypassproxy)
+        mpd, subs, timecodes = _ParseStreams(success, data, retmpd=True, bypassproxy=bypassproxy, webid=dtid==_g.dtid_web)
         if not mpd:
             _g.dialog.notification(getString(30203), subs, xbmcgui.NOTIFICATION_ERROR)
             return False
@@ -363,9 +375,6 @@ def PlayVideo(name, asin, adultstr, streamtype, forcefb=0):
 
         from xbmcaddon import Addon as KodiAddon
         is_version = KodiAddon(_g.is_addon).getAddonInfo('version') if _g.is_addon else '0'
-
-        if (not _s.audio_description) and (streamtype != 2) and (dtid == _g.dtid_web):
-            mpd = re.sub(r'(~|%7E)', '', mpd)
 
         Log(mpd, Log.DEBUG)
 
@@ -385,12 +394,11 @@ def PlayVideo(name, asin, adultstr, streamtype, forcefb=0):
         if mpaa_check and not AgeRestrictions().RequestPin():
             return True
 
-        listitem = xbmcgui.ListItem(label=title, path=mpd)
-
-        if 'adaptive' in _g.is_addon:
-            listitem.setProperty('inputstream.adaptive.manifest_type', 'mpd')
-
         Log('Using %s Version: %s' % (_g.is_addon, is_version))
+
+        listitem = xbmcgui.ListItem(label=title, path=mpd)
+        if (_g.KodiVersion < 21) and ('adaptive' in _g.is_addon):
+            listitem.setProperty('inputstream.adaptive.manifest_type', 'mpd')
         listitem.setArt({'thumb': thumb})
         listitem.setSubtitles(subs)
         listitem.setProperty('%s.license_type' % _g.is_addon, 'com.widevine.alpha')
@@ -639,7 +647,7 @@ class _AmazonPlayer(xbmc.Player):
         with co(self.resumedb, 'rb') as fp:
             try:
                 items = pickle.load(fp)
-            except (KeyError, pickle.UnpicklingError):
+            except (KeyError, pickle.UnpicklingError, EOFError):
                 items = {}
             self.resume = items.get(self.asin, {}).get('resume', 0)
             fp.close()

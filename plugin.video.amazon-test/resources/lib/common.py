@@ -5,6 +5,7 @@
 '''
 from __future__ import unicode_literals
 
+import base64
 import json
 from locale import getdefaultlocale
 from sys import argv
@@ -50,8 +51,8 @@ class Globals(Singleton):
     DBVersion = 1.4
     PayCol = 'FFE95E01'
     PrimeCol = 'FF00A8E0'
-    tmdb = 'b34490c056f0dd9e3ec9af2167a731f4'
-    tvdb = '9a4d848a-c7c8-4a25-96cc-594e672ef7fb'
+    tmdb = base64.b64decode('YjM0NDkwYzA1NmYwZGQ5ZTNlYzlhZjIxNjdhNzMxZjQ=').decode()
+    tvdb = base64.b64decode('ZWRhZTYwZGMtMWI0NC00YmFjLThkYjctNjVjMGFhZjUyNThi').decode()
     langID = {'movie': 30165, 'series': 30166, 'season': 30167, 'episode': 30173, 'tvshow': 30166, 'video': 30173, 'event': 30174, 'live': 30174}
     KodiVersion = int(xbmc.getInfoLabel('System.BuildVersion').split('.')[0])
     dtid_android = 'A43PXU4ZN2AL1'
@@ -161,7 +162,7 @@ class Settings(Singleton):
                   _bool_true:
                       ['useshowfanart', 'disptvshow', 'paycont', 'logging', 'json_dump', 'json_dump_collisions', 'sub_stretch', 'log_http', 'remotectrl',
                        'remote_vol', 'multiuser', 'wl_export', 'audio_description', 'pv_episode_thumbnails', 'tld_episode_thumbnails', 'use_h265', 'enable_atmos',
-                       'profiles', 'show_pass', 'enable_uhd', 'show_recents', 'preload_seasons', 'preload_all_seasons', 'wvl1_device'],
+                       'profiles', 'show_pass', 'enable_uhd', 'show_recents', 'preload_seasons', 'preload_all_seasons', 'wvl1_device', 'search_history', 'hide_trailers'],
                   _bool_false: ['json_dump_raw', 'ssl_verif', 'proxy_mpdalter']}
 
     def __getattr__(self, name):
@@ -297,7 +298,7 @@ def findKey(key, obj):
                     res = findKey(key, d)
                     if res:
                         return res
-    return []
+    return {}
 
 
 def get_key(def_value, obj, *keys):

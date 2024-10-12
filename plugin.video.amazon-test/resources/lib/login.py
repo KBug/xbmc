@@ -351,10 +351,10 @@ def LogIn(retToken=False):
             br.session.verify = _s.ssl_verif
             br.set_verbose(2)
             Log('Connect to SignIn Page')
-            if _s.data_source == 0 and _s.enable_uhd is False:
+            if False:
                 br.session.headers.update({'User-Agent': getConfig('UserAgent')})
                 br.open(user['baseurl'] + ('/gp/flex/sign-out.html' if not user['pv'] else '/auth-redirect/?signin=1'))
-                Log(br.get_url(), Log.DEBUG)
+                Log(br.session.headers)
                 br.session.headers.update({
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                     'Accept-Encoding': 'gzip, deflate',
@@ -586,10 +586,9 @@ def refreshToken(user, aid=None):
     else:
         data['requested_token_type'] = 'access_token'
         data['source_token'] = token['refresh']
-    LogJSON(data)
     headers = _g.headers_android
-    headers.pop('x-gasc-enabled')
-    headers.pop('X-Requested-With')
+    headers.pop('x-gasc-enabled', '')
+    headers.pop('X-Requested-With', '')
     headers.update({'x-amzn-identity-auth-domain': 'api.' + domain, 'Accept-Language': 'en-US', 'x-amzn-requestid': str(uuid4()).replace('-', '')})
     response = getURL('https://api.{}/auth/token'.format(domain), headers=headers, postdata=data)
     if 'access_token' in response:
